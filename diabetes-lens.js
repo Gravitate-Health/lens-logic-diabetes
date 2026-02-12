@@ -3,26 +3,47 @@ let htmlData = html;
 
 let epiData = epi;
 let ipsData = ips;
+let lang = "";
 
 let getSpecification = () => {
     return "1.0.0";
 };
 
+// Function to get the explanation of the lens
+const getExplanation = (lang = "en") => {
+    const explanations = {
+        en: "This lens adds a checklist for patients with diabetes.",
+        pt: "Esta lente adiciona uma lista de verificação para pacientes com diabetes.",
+        es: "Esta lente agrega una lista de verificación para pacientes con diabetes.",
+        da: "Denne linse tilføjer en tjekliste for patienter med diabetes.",
+    };
+    return explanations[lang] || explanations.en;
+};
+
+// Function to get the report of the lens
+const getReport = (lang = "en") => {
+    return {
+        message: getExplanation(lang),
+        status: "success",
+    };
+};
+
 // Utility: Detect language from ePI
-function detectLanguage(epiData) {
-    let languageDetected = null;
+function detectLanguage() {
     if (epiData && epiData.entry) {
         epiData.entry.forEach((entry) => {
             const res = entry.resource;
             if (res?.resourceType === "Composition" && res.language) {
-                languageDetected = res.language;
+                lang = res.language;
             }
         });
     }
-    if (!languageDetected && epiData && epiData.language) {
-        languageDetected = epiData.language;
+    if (!lang && epiData && epiData.language) {
+        lang = epiData.language;
     }
-    return languageDetected;
+    if (!lang) {
+        lang = "en";
+    }
 }
 
 // Utility: Check for relevant extension in ePI by system/code
@@ -45,10 +66,21 @@ function hasRelevantExtension(epiData, listOfCategoriesToSearch) {
     return false;
 }
 
-const insertCheckListLink = (listOfCategories, language, document, response) => {
-    let checklist = "";
-    if (language?.startsWith("pt")) {
-        checklist = `
+const getChecklistHTML = (language) => {
+    const checklists = {
+        en: `
+        <div class="checklist">
+          <h3>📋 Checklist</h3>
+          <p>This Drug can be complicated to use, so here is a checklist for you to remember to check things before.</p>
+          <ul>
+            <li><label><input type="checkbox"> Review medication list</label></li>
+            <li><label><input type="checkbox"> Confirm patient allergies</label></li>
+            <li><label><input type="checkbox"> Send follow-up email</label></li>
+            <li><label><input type="checkbox"> Update medical history</label></li>
+            <li><label><input type="checkbox"> Schedule next appointment</label></li>
+          </ul>
+        </div>`,
+        pt: `
         <div class="checklist">
           <h3>📋 Lista de Verificação</h3>
           <p>Este medicamento pode ser complicado de usar, por isso aqui está uma lista de verificação para se lembrar do que verificar antecipadamente.</p>
@@ -59,24 +91,8 @@ const insertCheckListLink = (listOfCategories, language, document, response) => 
             <li><label><input type="checkbox"> Atualizar histórico clínico</label></li>
             <li><label><input type="checkbox"> Marcar próxima consulta</label></li>
           </ul>
-        </div>
-      `;
-    } else if (language?.startsWith("en")) {
-        checklist = `
-        <div class="checklist">
-  <h3>📋 Checklist</h3>
-  <p>This Drug can be complicated to use, so here is a checklist for you to remember to check things before.</p>
-  <ul>
-    <li><label><input type="checkbox"> Review medication list</label></li>
-    <li><label><input type="checkbox"> Confirm patient allergies</label></li>
-    <li><label><input type="checkbox"> Send follow-up email</label></li>
-    <li><label><input type="checkbox"> Update medical history</label></li>
-    <li><label><input type="checkbox"> Schedule next appointment</label></li>
-  </ul>
-</div>
-      `;
-    } else if (language?.startsWith("es")) {
-        checklist = `
+        </div>`,
+        es: `
         <div class="checklist">
           <h3>📋 Lista de Comprobación</h3>
           <p>Este medicamento puede ser complicado de usar, así que aquí tienes una lista de comprobación para recordar lo que debes revisar antes.</p>
@@ -87,10 +103,8 @@ const insertCheckListLink = (listOfCategories, language, document, response) => 
             <li><label><input type="checkbox"> Actualizar historial médico</label></li>
             <li><label><input type="checkbox"> Programar próxima cita</label></li>
           </ul>
-        </div>
-      `;
-    } else if (language?.startsWith("da")) {
-        checklist = `
+        </div>`,
+        da: `
         <div class="checklist">
           <h3>📋 Tjekliste</h3>
           <p>Denne medicin kan være kompliceret at bruge, så her er en tjekliste, der kan hjælpe dig med at huske, hvad du skal kontrollere.</p>
@@ -101,9 +115,12 @@ const insertCheckListLink = (listOfCategories, language, document, response) => 
             <li><label><input type="checkbox"> Opdater medicinsk historik</label></li>
             <li><label><input type="checkbox"> Planlæg næste aftale</label></li>
           </ul>
-        </div>
-      `;
-    }
+        </div>`,
+    };
+    return checklists[language] || checklists.en;
+}
+
+const insertCheckListLink = (listOfCategories, language, document, response) => {
     let foundCategory = false;
     listOfCategories.forEach((className) => {
         if (
@@ -132,7 +149,7 @@ const insertCheckListLink = (listOfCategories, language, document, response) => 
     // No matching category tags → inject banner at top
     if (!foundCategory) {
         const bannerDiv = document.createElement("div");
-        bannerDiv.innerHTML = checklist;
+        bannerDiv.innerHTML = getChecklistHTML(language);
         const body = document.querySelector("body");
         if (body) {
             body.insertBefore(bannerDiv, body.firstChild);
@@ -166,11 +183,9 @@ let enhance = async () => {
     const BUNDLE_IDENTIFIER_LIST = ["epibundle-123", "epibundle-abc"];
     const PRODUCT_IDENTIFIER_LIST = ["CIT-204447", "RIS-197361"];
     let listOfCategoriesToSearch = [{ "code": "grav-4", "system": "https://www.gravitatehealth.eu/sid/doc" }];
-    // Detect language
-    let languageDetected = detectLanguage(epiData);
-    if (!languageDetected) {
-        console.warn("⚠️ No language detected in Composition or Bundle.");
-    }
+    
+    detectLanguage();
+
     // Check for relevant extension in ePI
     let hasExtension = hasRelevantExtension(epiData, listOfCategoriesToSearch);
     // Check bundle.identifier.value
@@ -229,14 +244,16 @@ let enhance = async () => {
         let { JSDOM } = jsdom;
         let dom = new JSDOM(htmlData);
         document = dom.window.document;
-        return insertCheckListLink(categories, languageDetected, document, response);
+        return insertCheckListLink(categories, lang, document, response);
     } else {
         document = window.document;
-        return insertCheckListLink(categories, languageDetected, document, response);
+        return insertCheckListLink(categories, lang, document, response);
     }
 };
 
 return {
     enhance: enhance,
     getSpecification: getSpecification,
+    explanation: (language) => getExplanation(language || lang || "en"),
+    report: (language) => getReport(language || lang || "en"),
 };
