@@ -1,0 +1,49 @@
+@startuml
+title Checklist Injection Based on Medication and Language
+
+start
+
+:Check if ePI is valid;
+if (ePI has entries?) then (yes)
+
+  :Detect language from Composition.language;
+  if (Not found) then (no)
+    :Fallback to Bundle.language;
+  endif
+
+  :Log detected language (pt, en, es, da or unknown);
+
+  :Check if Bundle.identifier is in allowed list;
+  :Check if any MedicinalProductDefinition.identifier matches;
+
+  if (Any match found?) then (yes)
+    :Extract Composition entries;
+    if (Any Composition found?) then (yes)
+      :Search for known category codes in extensions;
+
+      if (Matching categories found?) then (yes)
+        :Select localized checklist HTML based on language;
+        :Inject checklist into matching section;
+      else
+        :Select localized checklist HTML based on language;
+        :Inject checklist at top of page;
+      endif
+
+      :Extract updated body HTML;
+      :Return modified HTML;
+    else
+      :Throw Error "No Composition found";
+      stop
+    endif
+  else (no match)
+    :Log "No checklist-relevant medication";
+    :Return original HTML;
+    stop
+  endif
+
+else (no ePI)
+  :Throw Error "Invalid or empty ePI";
+  stop
+endif
+
+@enduml

@@ -6,6 +6,7 @@ const { JSDOM } = require("jsdom");
 // Load your input data
 global.html = fs.readFileSync(path.join(__dirname, "../data/html2.html"), "utf-8");
 global.epi = JSON.parse(fs.readFileSync(path.join(__dirname, "../data/epi.json")));
+global.ips = JSON.parse(fs.readFileSync(path.join(__dirname, "../data/ips.json")));
 
 // Set up DOM globally so the script can use it
 const dom = new JSDOM(global.html);
